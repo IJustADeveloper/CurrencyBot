@@ -5,16 +5,14 @@ import lxml.html
 
 
 class BaseConn:
-    def __init__(self, creds_file):
+    def __init__(self, host, port, password):
         self.conn = None
-        self.connection(creds_file)
+        self.connection(host, port, password)
 
-    def connection(self, creds_file):
-        with open(creds_file, 'r') as cf:
-            creds = cf.read().split("\n")
-            self.conn = redis.Redis(host=creds[0],
-                                    port=creds[1],
-                                    password=creds[2])
+    def connection(self, host, port, password):
+        self.conn = redis.Redis(host=host,
+                                port=port,
+                                password=password)
 
     def add(self, name, val):
         a = name.split(" ")
@@ -23,14 +21,6 @@ class BaseConn:
         else:
             var = a[0][0:3:1]
         self.conn.set(var, val)
-
-    def get_code(self, name):
-        a = name.split(" ")
-        if len(a) > 1:
-            var = a[0][0:3:1] + a[1][0:3:1]
-        else:
-            var = a[0][0:3:1]
-        return self.conn.get(var)
 
     def get_name(self, code):
         return self.conn.get(code).decode("utf-8")
@@ -47,7 +37,21 @@ class Parcer:
     @staticmethod
     def get_price(base, quote, amount):
         j = Parcer.parce()
-        total = (float(amount) / float(j["rates"][base])) * float(j["rates"][quote])
+        if base == quote:
+            raise QueryException(f"Невозможно перевести одинаковые валюты {base}")
+        try:
+            b_code = j["rates"][base.upper()]
+        except KeyError:
+            raise QueryException(f"Валюта {base} не существует. Проверьте написание.")
+        try:
+            q_code = j["rates"][quote.upper()]
+        except KeyError:
+            raise QueryException(f"Валюта {quote} не существует. Проверьте написание.")
+        try:
+            amount = float(amount)
+        except ValueError:
+            raise QueryException(f"Неверный ввод количетсва переводимой валюты.")
+        total = (amount / float(b_code) * float(q_code))
         return total
 
     # трогать на свой страх и риск(без ее запуска и бд ничего работать не будет)
@@ -66,3 +70,8 @@ class Parcer:
                     red.add(red, var, val)
         except IndexError:
             pass
+
+
+class QueryException(Exception):
+    def __init__(self, message):
+        super().__init__(message)

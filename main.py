@@ -1,13 +1,10 @@
 import telebot
-from extensions import BaseConn, Parcer
+from extensions import BaseConn, Parcer, QueryException
+from config import token, host, port, password
 
 
-with open("creds_file", 'r') as cf:
-    creds = cf.read().split("\n")
-    TOKEN = creds[3]
-
-bot = telebot.TeleBot(TOKEN)
-red = BaseConn("creds_file")
+bot = telebot.TeleBot(token)
+red = BaseConn(host, port, password)
 
 
 @bot.message_handler(commands=["start", "help"])
@@ -32,10 +29,20 @@ def values(message):
 
 @bot.message_handler()
 def calc(message):
-    params = message.text.split()
+    try:
+        params = message.text.split()
+        base, quote, amount = params
 
-    total = Parcer.get_price(params[0], params[1], params[2])
-    bot.send_message(message.chat.id, text=str(total)+" "+params[1])
+        if len(params) != 3:
+            raise QueryException("Вы ввели слишком мало/много параметров. Попробуйте еще раз")
+
+        total = Parcer.get_price(base, quote, amount)
+    except QueryException as e:
+        bot.send_message(message.chat.id, text=e)
+    except Exception as e:
+        bot.send_message(message.chat.id, text=f"Не удалось обработать команду.{e}")
+    else:
+        bot.send_message(message.chat.id, text=f"{amount} {base.upper()} = {total} {quote.upper()}")
 
 
 bot.polling(none_stop=True)
